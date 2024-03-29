@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"net"
+	"log"
+	"os"
+	"regexp"
 
 	"mycni/pkg/bridge"
 	"mycni/pkg/config"
@@ -19,6 +22,7 @@ import (
 
 const (
 	pluginName = "mycni"
+	tmpfile	= "/var/run/mycni.log"
 )
 
 func main() {
@@ -27,6 +31,16 @@ func main() {
 
 // cmdAdd is called for ADD requests
 func cmdAdd(args *skel.CmdArgs) error {
+	file, err := openLogFile("/var/run/mycni/mylog.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.SetOutput(file)
+	log.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
+	podName := get_regex(args.Args)
+	log.Print(podName)
+
+
 	conf, err := config.LoadCNIConfig(args.StdinData)
 	if err != nil {
 		return err
@@ -139,4 +153,20 @@ func cmdCheck(args *skel.CmdArgs) error {
 	defer netns.Close()
 
 	return bridge.CheckVeth(netns, args.IfName, ip)
+}
+
+func openLogFile(path string) (*os.File, error) {
+    logFile, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+    if err != nil {
+        return nil, err
+    }
+    return logFile, nil
+}
+
+
+func get_regex(arg string) string {
+
+	var re = regexp.MustCompile(`(\;K8S_POD_NAME=)(.+)\;`)
+	return re.FindAllString(arg,2)[1]
+
 }
